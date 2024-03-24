@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Input-Output Extension",
+  "version": "1.0",
+  "description": "A Chrome extension for input and output functionality",
+  "permissions": ["activeTab"],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
