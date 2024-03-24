@@ -1,6 +1,6 @@
-chrome.browserAction.onClicked.addListener(function(tab){
-  chrome.tabs.create({
-    url: chrome.extension.getURL('popup.html'),
+browser.browserAction.onClicked.addListener(function(tab){
+  browser.tabs.create({
+    url: browser.runtime.getURL('popup.html'),
     active: true
   })
 })
