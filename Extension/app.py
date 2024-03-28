@@ -3,6 +3,13 @@ import pickle
 import torch
 from transformers import BertTokenizer, BertModel
 from flask_cors import CORS
+import nltk
+
+nltk.download('punkt')
+from nltk.corpus import stopwords
+
+nltk.download('stopwords')
+stopwords_set = set(stopwords.words('english'))
 
 with open('SavedModel/best_model.pkl', 'rb') as f:
     model = pickle.load(f)
@@ -16,32 +23,40 @@ tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 # Load BERT model
 bert_model = BertModel.from_pretrained('bert-base-uncased')
 
-# Function to preprocess input titles
-def preprocess_titles(titles):
-    # Tokenize and pad the input data for BERT
-    tokens = [tokenizer.encode(title, max_length=128, truncation=True, padding='max_length', return_tensors='pt')[0] for title in titles]
-    tokens = torch.stack(tokens)
-    
+# Function to predict keywords for a given title
+def predict_keywords(titles):
+
+    title = titles[0]
+
+    filtered_text = title.lower()
+    tokens = nltk.word_tokenize(filtered_text)
+
+    filtered_tokens = [token for token in tokens if token not in stopwords_set]
+
+    filtered_text = ' '.join(filtered_tokens)
+
+    # Tokenize and pad the input title for BERT
+    title_tokens = tokenizer.encode(filtered_text, max_length=128, truncation=True, padding='max_length', return_tensors='pt')
+
     # Get BERT embeddings
     with torch.no_grad():
-        embeddings = bert_model(tokens).last_hidden_state.mean(dim=1)
-    
-    # Convert titles to TF-IDF features
-    tfidf_features = vectorizer.transform(titles)
-    
+        title_embedding = bert_model(title_tokens).last_hidden_state.mean(dim=1)
+
+    # TF-IDF vectorization
+    title_tfidf = vectorizer.transform([title])
+
     # Concatenate BERT embeddings with TF-IDF features
-    combined_features = torch.cat([torch.tensor(tfidf_features.toarray(), dtype=torch.float32), embeddings], dim=1)
-    
-    return combined_features
+    title_combined = torch.cat([torch.tensor(title_tfidf.toarray(), dtype=torch.float32), title_embedding], dim=1)
+
+    # Make prediction using the trained model
+    predicted_keywords = model.predict(title_combined).tolist()  # Convert to list
+    return predicted_keywords
 
 def predict_tags(titles):
-    # Preprocess titles
-    X = preprocess_titles(titles)
     
-    # Make predictions using the loaded model
-    predictions = model.predict(X)
+    X = predict_keywords(titles)
     
-    return predictions.tolist()
+    return X
 
 app = Flask(__name__)
 CORS(app)
@@ -52,7 +67,7 @@ def predict():
         json_data = request.json
         input_titles = json_data.get('titles', [])
 
-        predicted_tags = predict_tags(input_titles)
+        predicted_tags = predict_keywords(input_titles)
         response_data = {'predicted_tags': predicted_tags}
         
         response = jsonify(response_data)
